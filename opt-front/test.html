@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 채팅 테스트</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chat-container { width: 500px; margin: auto; }
+        #chat-box { width: 100%; height: 300px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; background: #f9f9f9; }
+        .message { margin: 5px 0; padding: 8px; border-radius: 5px; max-width: 80%; display: inline-block; }
+        .my-message { background-color: #d1e7dd; text-align: right; }
+        .other-message { background-color: #f8d7da; text-align: left; }
+        .system-message { background-color: #e7e7e7; font-style: italic; text-align: center; }
+        .chat-room-btn { padding: 10px; margin: 5px; border: none; cursor: pointer; background-color: lightgray; width: 100%; text-align: left; }
+        .chat-room-btn.selected { background-color: lightblue; }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <h2>WebSocket 채팅 테스트</h2>
+
+        <h3>회원가입</h3>
+        <input type="text" id="signupEmail" placeholder="이메일 입력">
+        <button onclick="signup()">회원가입</button>
+        <p id="signupResult"></p>
+
+        <h3>로그인</h3>
+        <input type="text" id="loginEmail" placeholder="이메일 입력">
+        <button onclick="login()">로그인</button>
+        <p id="loginResult"></p>
+
+        <h3>채팅방 관리</h3>
+        <button onclick="loadChatRooms()">채팅방 목록 불러오기</button>
+        <button onclick="createChatRoom()">채팅방 생성</button>
+        <input type="text" id="otherUserId" placeholder="상대방 ID 입력">
+        <button onclick="leaveChatRoom()">채팅방 나가기</button>
+
+        <h4>채팅방 목록</h4>
+        <div id="chatRoomList"></div>
+
+        <h4>현재 채팅방</h4>
+        <p id="currentRoom">선택된 채팅방: 없음</p>
+
+        <button onclick="connectWebSocket()">웹소켓 연결</button>
+        <p id="status">연결 상태: 끊김</p>
+
+        <div id="chat-box"></div>
+        <div>
+            <input type="text" id="messageInput" placeholder="메시지를 입력하세요">
+            <button onclick="sendMessage()">전송</button>
+        </div>
+
+        <h3>시스템 메시지 전송</h3>
+<input type="text" id="targetUserId" placeholder="받을 유저 ID 입력">
+<input type="text" id="systemMessageInput" placeholder="시스템 메시지 입력">
+<button onclick="sendSystemMessageToUser()">유저에게 시스템 메시지 전송</button>
+<br><br>
+<button onclick="sendSystemMessageToRoom()">채팅방에 시스템 메시지 전송</button>
+
+    </div>
+
+    <script>
+        let stompClient = null;
+        let accessToken = localStorage.getItem("accessToken");
+        let userId = localStorage.getItem("userId");
+        let selectedRoomId = null;
+
+        function signup() {
+            const email = document.getElementById("signupEmail").value;
+            fetch("https://i12a309.p.ssafy.io/auth/sign-up", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email })
+            })
+            .then(response => response.text())
+            .then(() => document.getElementById("signupResult").innerText = "회원가입 성공!")
+            .catch(error => console.error("회원가입 오류:", error));
+        }
+
+        function login() {
+            const email = document.getElementById("loginEmail").value;
+            fetch("https://i12a309.p.ssafy.io/auth/sign-in", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.accessToken) {
+                    accessToken = data.accessToken;
+                    userId = data.userId;
+                    localStorage.setItem("accessToken", accessToken);
+                    localStorage.setItem("userId", userId);
+                    document.getElementById("loginResult").innerText = "로그인 성공!";
+                }
+            })
+            .catch(error => console.error("로그인 오류:", error));
+        }
+
+        function createChatRoom() {
+            const otherUserId = document.getElementById("otherUserId").value;
+            fetch(`https://i12a309.p.ssafy.io/chat-rooms/create?otherMemberId=${otherUserId}`, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" }
+            })
+            .then(response => response.json())
+            .then(room => {
+                console.log("✅ 채팅방 생성 완료:", room);
+                loadChatRooms();
+            })
+            .catch(error => console.error("❌ 채팅방 생성 오류:", error));
+        }
+
+        // function loadChatRooms() {
+        //     fetch("http://localhost:8080/chat-room/list", {
+        //         method: "GET",
+        //         headers: { Authorization: "Bearer " + accessToken }
+        //     })
+        //     .then(response => response.json())
+        //     .then(rooms => {
+        //         const chatRoomList = document.getElementById("chatRoomList");
+        //         chatRoomList.innerHTML = "";
+        //         rooms.forEach(room => {
+        //             const btn = document.createElement("button");
+        //             btn.textContent = `채팅방 ${room.id}`;
+        //             btn.classList.add("chat-room-btn");
+        //             btn.onclick = () => selectChatRoom(room.id, btn);
+        //             chatRoomList.appendChild(btn);
+        //         });
+        //     })
+        //     .catch(error => console.error("채팅방 목록 불러오기 오류:", error));
+        // }
+        function loadChatRooms() {
+    fetch("https://i12a309.p.ssafy.io/chat-rooms/list", {
+        method: "GET",
+        headers: { Authorization: "Bearer " + accessToken }
+    })
+    .then(response => response.json())  // JSON 변환
+    .then(rooms => {
+        console.log("📌 서버 응답 확인:", rooms);  // 응답 확인
+        if (!Array.isArray(rooms)) {
+            console.error("🚨 오류: 서버에서 반환된 데이터가 배열이 아닙니다:", rooms);
+            return;
+        }
+
+        const chatRoomList = document.getElementById("chatRoomList");
+        chatRoomList.innerHTML = "";
+        rooms.forEach(room => {
+            const btn = document.createElement("button");
+            btn.textContent = `채팅방 ${room.id}`;
+            btn.classList.add("chat-room-btn");
+            btn.onclick = () => selectChatRoom(room.id, btn);
+            chatRoomList.appendChild(btn);
+        });
+    })
+    .catch(error => console.error("🚨 채팅방 목록 불러오기 오류:", error));
+}
+
+
+        function leaveChatRoom() {
+            fetch(`https://i12a309.p.ssafy.io/chat-rooms/leave/${selectedRoomId}`, {
+                method: "POST",
+                headers: { Authorization: "Bearer " + accessToken }
+            })
+            .then(() => {
+                alert("채팅방을 나갔습니다.");
+                loadChatRooms();
+            })
+            .catch(error => console.error("채팅방 나가기 오류:", error));
+        }
+
+        function selectChatRoom(roomId, button) {
+    selectedRoomId = roomId;
+    document.getElementById("currentRoom").innerText = `선택된 채팅방: ${roomId}`;
+    
+    document.querySelectorAll(".chat-room-btn").forEach(btn => btn.classList.remove("selected"));
+    button.classList.add("selected");
+
+    console.log(`✅ 채팅방(${roomId})을 선택했습니다. 이전 대화를 불러옵니다.`);
+
+    // ✅ 채팅방 메시지 불러오기
+    loadChatRoomMessages(roomId);
+
+    // ✅ WebSocket 구독
+    if (stompClient && stompClient.connected) {
+        subscribeToRoom(roomId);
+    }
+}
+
+function loadChatRoomMessages(roomId) {
+    console.log(`📌 [DEBUG] 채팅방(${roomId})의 이전 메시지를 불러옵니다...`);
+
+    fetch(`https://i12a309.p.ssafy.io/chat-rooms/message?roomId=${roomId}`, {
+        method: "GET",
+        headers: { "Authorization": "Bearer " + accessToken }
+    })
+    .then(response => response.json())
+    .then(messages => {
+        console.log(`📩 [DEBUG] 서버 응답:`, messages);
+
+        if (!Array.isArray(messages)) {
+            console.error("🚨 [ERROR] 서버에서 반환된 데이터가 배열이 아닙니다:", messages);
+            return;
+        }
+
+        const chatBox = document.getElementById("chat-box");
+        chatBox.innerHTML = ""; // 기존 메시지 초기화
+
+        messages.forEach(msg => {
+            console.log(`💬 [DEBUG] 메시지 추가: ${msg.senderId}: ${msg.content}`);
+            displayMessage(msg);
+        });
+
+        console.log("✅ [DEBUG] 이전 메시지 로드 완료!");
+    })
+    .catch(error => console.error("❌ [ERROR] 이전 메시지 불러오기 오류:", error));
+}
+
+
+
+        // function selectChatRoom(roomId, button) {
+        //     selectedRoomId = roomId;
+        //     document.getElementById("currentRoom").innerText = `선택된 채팅방: ${roomId}`;
+        //     document.querySelectorAll(".chat-room-btn").forEach(btn => btn.classList.remove("selected"));
+        //     button.classList.add("selected");
+
+        //     if (stompClient && stompClient.connected) {
+        //         subscribeToRoom(roomId);
+        //     }
+        // }
+
+//         function subscribeToRoom(roomId) {
+//     if (!stompClient || !stompClient.connected) {
+//         console.error("🚨 WebSocket이 연결되지 않아 채팅방을 구독할 수 없습니다.");
+//         return;
+//     }
+
+//     let roomSubscription = `/topic/chat-room/${roomId}`;
+//     console.log(`📡 [WebSocket] 채팅방 구독 시도: ${roomSubscription}`);
+
+//     stompClient.subscribe(roomSubscription, function (message) {
+//         const msgData = JSON.parse(message.body);
+//         console.log("📩 [WebSocket] 수신한 메시지:", msgData);
+//         displayMessage(msgData);
+//     }, { Authorization: "Bearer " + accessToken });
+// }
+
+function subscribeToRoom(roomId) {
+    if (!stompClient || !stompClient.connected) {
+        console.error("🚨 WebSocket이 연결되지 않아 채팅방을 구독할 수 없습니다.");
+        return;
+    }
+
+    let roomSubscription = `/topic/chat-room/${roomId}`;
+    console.log(`📡 [WebSocket] 채팅방 구독 시도: ${roomSubscription}`);
+
+    stompClient.subscribe(roomSubscription, function (message) {
+        console.log("📩 [WebSocket] 수신한 메시지 원본:", message); // JSON 변환 전 원본 데이터
+
+        try {
+            const msgData = JSON.parse(message.body);
+            console.log("📩 [WebSocket] 파싱된 메시지:", msgData);
+            console.log("🛠 displayMessage() 호출 전 데이터:", msgData);
+            displayMessage(msgData);
+        } catch (error) {
+            console.error("🚨 메시지 파싱 오류:", error);
+        }
+    }, { Authorization: "Bearer " + accessToken });
+}
+
+
+
+
+        function connectWebSocket() {
+            const socket = new SockJS("https://i12a309.p.ssafy.io/ws-chat");
+stompClient = Stomp.over(socket);
+
+const headers = { Authorization: "Bearer " + accessToken };
+
+stompClient.connect(headers, function () {
+    console.log("✅ WebSocket 연결 성공!");
+    document.getElementById("status").innerText = "연결 상태: 연결됨";
+}, function (error) {
+    console.error("❌ WebSocket 연결 실패:", error);
+});
+
+        }
+
+        function sendMessage() {
+    if (!stompClient || !stompClient.connected) {
+        console.error("🚨 WebSocket이 연결되지 않았습니다. 메시지를 보낼 수 없습니다.");
+        return;
+    }
+    if (!selectedRoomId) {
+        console.error("🚨 채팅방이 선택되지 않았습니다. 메시지를 보낼 수 없습니다.");
+        console.log("현재 selectedRoomId 값:", selectedRoomId);
+        return;
+    }
+
+    const message = document.getElementById("messageInput").value;
+    if (!message.trim()) {
+        console.warn("⚠️ 빈 메시지는 보낼 수 없습니다.");
+        return;
+    }
+
+    const payload = JSON.stringify({ roomId: selectedRoomId, content: message });
+
+    console.log("📤 메시지 전송 시도:", payload);
+
+    stompClient.send(`/app/chat-room/${selectedRoomId}`, { Authorization: "Bearer " + accessToken }, payload);
+
+    document.getElementById("messageInput").value = "";
+}
+
+// ✅ 메시지를 화면에 추가하는 함수
+function displayMessage(message) {
+    console.log("💬 [UI 업데이트] 메시지 화면에 추가:", message);
+
+    const chatBox = document.getElementById("chat-box");
+    const newMessage = document.createElement("div");
+    newMessage.classList.add("message");
+
+    // ✅ 시스템 메시지 처리 (senderId 또는 receiverId가 0일 경우)
+    if (message.senderId == 0 || message.receiverId == 0) {
+        newMessage.classList.add("system-message");
+        newMessage.innerText = `[SYSTEM] ${message.content}`;
+    } 
+    // ✅ 내가 보낸 메시지
+    else if (message.senderId == userId) {
+        newMessage.classList.add("my-message");
+        newMessage.innerText = `(${message.senderId}): ${message.content}`;
+    } 
+    // ✅ 상대방이 보낸 메시지
+    else {
+        newMessage.classList.add("other-message");
+        newMessage.innerText = `(${message.senderId}): ${message.content}`;
+    }
+
+    chatBox.appendChild(newMessage);
+    chatBox.scrollTop = chatBox.scrollHeight; // 자동 스크롤
+}
+
+// function displayMessage(message) {
+//     console.log("💬 [UI 업데이트] 메시지 화면에 추가:", message);
+
+//     if (!message || !message.senderId || !message.content) {
+//         console.error("🚨 메시지 데이터가 올바르지 않습니다:", message);
+//         return;
+//     }
+
+//     const chatBox = document.getElementById("chat-box");
+//     const newMessage = document.createElement("div");
+//     newMessage.classList.add("message");
+
+//     if (message.senderId == userId) {
+//         newMessage.classList.add("my-message");
+//     } else if (message.messageType === "SYSTEM") {
+//         newMessage.classList.add("system-message");
+//     } else {
+//         newMessage.classList.add("other-message");
+//     }
+
+//     console.log("🛠 [UI] 메시지 스타일 적용 완료");
+
+//     newMessage.innerText = `(${message.senderId}): ${message.content}`;
+//     chatBox.appendChild(newMessage);
+//     chatBox.scrollTop = chatBox.scrollHeight; // 자동 스크롤
+
+//     console.log("✅ [UI] 메시지 추가 완료");
+// }
+
+
+// ✅ 특정 유저에게 시스템 메시지 전송 (관리자 → 특정 유저)
+function sendSystemMessageToUser() {
+    const receiverId = document.getElementById("targetUserId").value;
+    const messageContent = document.getElementById("systemMessageInput").value;
+
+    if (!receiverId || !messageContent) {
+        console.error("🚨 수신자 ID와 메시지를 입력해야 합니다.");
+        return;
+    }
+
+    const payload = {
+        receiverId: parseInt(receiverId),
+        senderId: 0, // 시스템(관리자)에서 보내는 경우 0
+        content: messageContent
+    };
+
+    fetch("https://i12a309.p.ssafy.io/chat-messages/system/member", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.text())
+    .then(data => {
+        console.log("✅ 특정 유저에게 시스템 메시지 전송 완료:", data);
+    })
+    .catch(error => console.error("❌ 시스템 메시지 전송 오류:", error));
+}
+
+// ✅ 채팅방에 시스템 메시지 전송
+function sendSystemMessageToRoom() {
+    if (!selectedRoomId) {
+        console.error("🚨 채팅방을 먼저 선택해야 합니다.");
+        return;
+    }
+
+    const messageContent = document.getElementById("systemMessageInput").value;
+    if (!messageContent) {
+        console.error("🚨 메시지를 입력해야 합니다.");
+        return;
+    }
+
+    const payload = {
+        roomId: selectedRoomId,
+        senderId: 0, // 시스템 메시지이므로 0
+        content: messageContent
+    };
+
+    fetch("https://i12a309.p.ssafy.io/chat-messages/system/room", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.text())
+    .then(data => {
+        console.log("✅ 채팅방에 시스템 메시지 전송 완료:", data);
+    })
+    .catch(error => console.error("❌ 채팅방 시스템 메시지 전송 오류:", error));
+}
+
+    </script>
+
+</body>
+</html>
