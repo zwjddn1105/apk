@@ -8,7 +8,6 @@ import {
   FlatList,
   Dimensions,
   StyleSheet,
-  ImageBackground,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
@@ -84,6 +83,7 @@ const fetchChallenges = async (
     setPage(page + 1);
     setHasMore(!response.data.last);
   } catch (error) {
+    console.error(`${status} 챌린지 불러오기 실패:`, error);
     throw error;
   }
 };
@@ -146,7 +146,9 @@ const AllChallengeScreen: React.FC = () => {
             setHasMoreEnded
           ),
         ]);
-      } catch (error) {}
+      } catch (error) {
+        console.error("챌린지 데이터 불러오기 실패:", error);
+      }
     };
 
     fetchInitialChallenges();
@@ -176,15 +178,28 @@ const AllChallengeScreen: React.FC = () => {
       }
       activeOpacity={0.8}
     >
-      <ImageBackground
-        source={{ uri: challenge.imagePath }}
-        style={styles.challengeCard}
-        imageStyle={{ borderRadius: 15 }}
-      >
-        <View style={styles.overlay}>
+      <View style={styles.challengeCard}>
+        <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{challenge.title}</Text>
+          <Text style={styles.cardSubtitle}>{challenge.type}</Text>
         </View>
-      </ImageBackground>
+        <View style={styles.cardContent}>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>기간</Text>
+            <Text
+              style={styles.infoValue}
+            >{`${challenge.startDate} ~ ${challenge.endDate}`}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>상태</Text>
+            <Text style={styles.infoValue}>{challenge.status}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>보상</Text>
+            <Text style={styles.infoValue}>{challenge.reward}</Text>
+          </View>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
@@ -348,11 +363,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "bold",
-    color: "#FFFFFF", // 흰색 텍스트
-    textAlign: "center",
-    padding: 10,
+    marginBottom: 4,
   },
   cardSubtitle: {
     fontSize: 14,
@@ -447,12 +460,6 @@ const styles = StyleSheet.create({
   },
   switchThumbActive: {
     right: 4, // 활성화 상태에서 오른쪽으로 이동
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.4)", // 반투명한 오버레이
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 

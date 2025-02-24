@@ -149,12 +149,14 @@ const CreateChallengeScreen = () => {
     try {
       const refreshToken = await AsyncStorage.getItem("refreshToken");
       if (!refreshToken) {
+        console.error("Refresh token not found");
         return;
       }
       const formatDate2 = (date: Date) => {
         return date.toISOString().split("T")[0]; // '2025-02-16T00:00:00.000Z' → '2025-02-16'
       };
 
+      console.log("a");
       const formData = new FormData();
 
       formData.append("type", selectedType?.value || "");
@@ -187,14 +189,17 @@ const CreateChallengeScreen = () => {
           name: fileName,
         } as any);
       }
+      console.log("c");
       const response = await axios.post(`${BASE_URL}/challenges`, formData, {
         headers: {
           Authorization: `Bearer ${refreshToken}`,
         },
       });
+      console.log("Challenge created:", response.data);
       setModalVisible(false);
       navigation.navigate("ManageChallenge");
     } catch (error) {
+      console.error("Error creating challenge:", error);
     }
   };
 

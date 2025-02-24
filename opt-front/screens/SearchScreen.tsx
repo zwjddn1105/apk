@@ -11,35 +11,20 @@ import {
   ScrollView,
   ActivityIndicator,
   Keyboard,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TopHeader } from "../components/TopHeader";
+import { BODY_PARTS } from "../components/BodyParts";
 import * as Location from 'expo-location';
-import { getRecommendedTrainers, searchTrainers, type TrainerResponse } from '../api/searchTrainer';  
-import TrainerCard from "components/TrainerCard";
-
-const TRAINING_CATEGORIES = [
-  "근력 향상",
-  "체지방 감량",
-  "체형 교정",
-  "유연성 증가",
-  "코어 강화",
-  "심폐지구력 향상",
-  "운동 습관 형성",
-  "부상 예방 및 재활",
-  "스포츠 경기력 향상",
-  "다이어트 및 체중 관리"
-];
+import { searchTrainers, type TrainerResponse } from '../api/searchTrainer';  
 
 type FilterCategories = {
   [key: string]: string[];
 };
 
 const filterOptions: FilterCategories = {
-  categories: TRAINING_CATEGORIES,
+  exfilter: [...BODY_PARTS],
 };
 
 interface FilterSideBarProps {
@@ -175,7 +160,7 @@ const FilterSideBar: React.FC<FilterSideBarProps> = ({
                   </View>
                 </View>
                 <View style={styles.filterOptionsContainer}>
-                  {filterOptions.categories.map((option) => (
+                  {filterOptions.exfilter.map((option) => (
                     <TouchableOpacity
                       key={option}
                       style={styles.filterOption}
@@ -223,9 +208,24 @@ const FilterSideBar: React.FC<FilterSideBarProps> = ({
   );
 };
 
+const TrainerCard: React.FC<{ trainer: TrainerResponse }> = ({ trainer }) => (
+  <View style={styles.card}>
+    <View style={styles.cardContent}>
+      <Text style={styles.intro}>{trainer.intro}</Text>
+      <Text style={styles.experience}>경력 {trainer.experienceYears}년</Text>
+      <Text style={styles.availableHours}>가능 시간: {trainer.availableHours}</Text>
+      {trainer.oneDayAvailable && (
+        <View style={styles.oneDayBadge}>
+          <Text style={styles.oneDayText}>원데이 클래스 가능</Text>
+        </View>
+      )}
+    </View>
+  </View>
+);
+
 const SearchScreen = () => {
   const [searchCategory, setSearchCategory] = useState<"address" | "name">("address");
-  const [selectedSort, setSelectedSort] = useState("recommendation");
+  const [selectedSort, setSelectedSort] = useState("recommended");
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [openedFromSort, setOpenedFromSort] = useState(false);
@@ -238,11 +238,10 @@ const SearchScreen = () => {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
 
   const sortOptions = [
-    { id: "recommendation", label: "추천순" },
+    { id: "recommended", label: "추천순" },
+    { id: "distance", label: "거리순" },
     { id: "rating", label: "평점순" },
     { id: "review", label: "리뷰순" },
   ];
@@ -256,10 +255,6 @@ const SearchScreen = () => {
     requestLocationPermission();
   }, []);
 
-  useEffect(() => {
-    loadInitialTrainers();
-  }, [userLocation]);
-
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -271,120 +266,32 @@ const SearchScreen = () => {
         });
       }
     } catch (err) {
-    }
-  };
-
-  const loadInitialTrainers = async () => {
-    if (loading) return;
-    
-    setLoading(true);
-    setError(null);
-    setCurrentPage(0);
-
-    try {
-      const response = await getRecommendedTrainers({
-        myLatitude: userLocation?.latitude || null,
-        myLongitude: userLocation?.longitude || null,
-        page: 0,
-        size: 10
-      });
-
-      setTrainers(response.content);
-      setHasMore(!response.last);
-      setCurrentPage(0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '트레이너 목록을 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadMoreTrainers = async () => {
-    if (loading || !hasMore) return;
-  
-    setLoading(true);
-    try {
-      const searchParams = {
-        myLatitude: userLocation?.latitude || null,
-        myLongitude: userLocation?.longitude || null,
-        name: searchCategory === "name" ? searchQuery : null,
-        address: searchCategory === "address" ? searchQuery : null,
-        interests: selectedFilters.length > 0 ? selectedFilters : null,
-        sortBy: selectedSort,  // 항상 sortBy 값을 포함
-        page: currentPage + 1,
-        size: 10
-      };
-  
-      const hasSearchConditions = searchQuery || selectedFilters.length > 0;
-      
-      const response = hasSearchConditions 
-        ? await searchTrainers(searchParams)
-        : await getRecommendedTrainers({
-            myLatitude: userLocation?.latitude || null,
-            myLongitude: userLocation?.longitude || null,
-            page: currentPage + 1,
-            size: 10
-          });
-  
-      setTrainers(prev => [...prev, ...response.content]);
-      setHasMore(!response.last);
-      setCurrentPage(prev => prev + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '추가 트레이너 목록을 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
+      console.error('Error getting location:', err);
     }
   };
 
   const handleSearch = async () => {
-    if (loading) return;
-    
     Keyboard.dismiss();
     setLoading(true);
     setError(null);
-    setCurrentPage(0);
-  
+
     try {
       const searchParams = {
         myLatitude: userLocation?.latitude || null,
         myLongitude: userLocation?.longitude || null,
-        name: searchCategory === "name" ? searchQuery : null,
-        address: searchCategory === "address" ? searchQuery : null,
+        name: searchCategory === 'name' ? searchQuery : null,
+        address: searchCategory === 'address' ? searchQuery : null,
         interests: selectedFilters.length > 0 ? selectedFilters : null,
-        sortBy: selectedSort,  // 항상 sortBy 값을 포함
-        page: 0,
-        size: 10
+        sortBy: selectedSort,
       };
-  
-      // 검색 조건이 있는 경우 search API 사용
-      const hasSearchConditions = searchQuery || selectedFilters.length > 0;
-      
-      const response = hasSearchConditions 
-        ? await searchTrainers(searchParams)
-        : await getRecommendedTrainers({
-            myLatitude: userLocation?.latitude || null,
-            myLongitude: userLocation?.longitude || null,
-            page: 0,
-            size: 10
-          });
-  
-      setTrainers(response.content);
-      setHasMore(!response.last);
-      setCurrentPage(0);
+
+      const result = await searchTrainers(searchParams);
+      setTrainers(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '트레이너 목록을 불러오는데 실패했습니다.');
+      setError('트레이너 검색 중 오류가 발생했습니다.');
+      console.error('Search error:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 20;
-    
-    if (layoutMeasurement.height + contentOffset.y >= 
-        contentSize.height - paddingToBottom) {
-      loadMoreTrainers();
     }
   };
 
@@ -392,166 +299,151 @@ const SearchScreen = () => {
     <SafeAreaView style={styles.safeArea}>
       <TopHeader />
       <View style={styles.container}>
-        <ScrollView>
-          <View style={styles.contentContainer}>
-            <View style={styles.header}>
-              <View style={styles.searchWrapper}>
-                <TouchableOpacity
-                  style={styles.categoryButton}
-                  onPress={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                >
-                  <Text style={styles.categoryText}>
-                    {searchCategory === "address" ? "주소" : "이름"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={16} color="#666" />
-                </TouchableOpacity>
+        <View style={styles.header}>
+          <View style={styles.searchWrapper}>
+            <TouchableOpacity
+              style={styles.categoryButton}
+              onPress={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+            >
+              <Text style={styles.categoryText}>
+                {searchCategory === "address" ? "주소" : "이름"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
 
-                {isCategoryDropdownOpen && (
-                  <View style={styles.categoryDropdown}>
-                    {categoryOptions
-                      .filter((option) => option.id !== searchCategory)
-                      .map((option) => (
-                        <TouchableOpacity
-                          key={option.id}
-                          style={styles.categoryDropdownItem}
-                          onPress={() => {
-                            setSearchCategory(option.id as "address" | "name");
-                            setIsCategoryDropdownOpen(false);
-                          }}
-                        >
-                          <Text style={styles.categoryDropdownItemText}>
-                            {option.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                  </View>
-                )}
-
-                <View style={styles.searchContainer}>
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder={`${searchCategory === "address" ? "주소" : "트레이너 이름으"}로 검색`}
-                    placeholderTextColor="#999"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    returnKeyType="search"
-                    onSubmitEditing={handleSearch}
-                  />
-                  <TouchableOpacity 
-                    style={styles.searchButton}
-                    onPress={handleSearch}
-                  >
-                    <Ionicons name="search" size={24} color="#666" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.filtersArea}>
-              {selectedFilters.length > 0 && (
-                <ScrollView
-                  horizontal
-                  style={styles.selectedFiltersContainer}
-                  showsHorizontalScrollIndicator={false}
-                >
-                  {selectedFilters.map((filter) => (
+            {isCategoryDropdownOpen && (
+              <View style={styles.categoryDropdown}>
+                {categoryOptions
+                  .filter((option) => option.id !== searchCategory)
+                  .map((option) => (
                     <TouchableOpacity
-                      key={filter}
-                      style={styles.selectedFilterButton}
-                      onPress={() =>
-                        setSelectedFilters(selectedFilters.filter((f) => f !== filter))
-                      }
+                      key={option.id}
+                      style={styles.categoryDropdownItem}
+                      onPress={() => {
+                        setSearchCategory(option.id as "address" | "name");
+                        setIsCategoryDropdownOpen(false);
+                      }}
                     >
-                      <Text style={styles.selectedFilterText}>{filter}</Text>
-                      <Ionicons
-                        name="close"
-                        size={12}
-                        color="#666"
-                        style={styles.selectedFilterIcon}
-                      />
+                      <Text style={styles.categoryDropdownItemText}>
+                        {option.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
-              )}
-
-              <View style={styles.filterSection}>
-                <TouchableOpacity
-                  style={styles.sortTriggerButton}
-                  onPress={() => {
-                    setOpenedFromSort(true);
-                    setIsFilterVisible(true);
-                  }}
-                >
-                  <Text style={styles.sortTriggerText}>
-                    {sortOptions.find((opt) => opt.id === selectedSort)?.label || "추천순"}
-                  </Text>
-                  <Text style={styles.arrowText}>↑↓</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.filterButton}
-                  onPress={() => {
-                    setOpenedFromSort(false);
-                    setIsFilterVisible(true);
-                  }}
-                >
-                  <Ionicons
-                    name="options-outline"
-                    size={16}
-                    color="#666"
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text style={styles.filterButtonText}>필터</Text>
-                  {selectedFilters.length > 0 && (
-                    <Text style={styles.filterCount}>({selectedFilters.length})</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {loading && currentPage === 0 ? (
-              <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#0000ff" />
-              </View>
-            ) : error ? (
-              <View style={styles.centerContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : (
-              <View style={styles.cardContainer}>
-                {trainers.map((trainer, index) => {
-                  // trainerId가 없거나 중복될 수 있으므로 index를 조합하여 유니크한 key 생성
-                  const uniqueKey = `trainer-${trainer.trainerId}-${index}`;
-                  
-                  return (
-                    <TrainerCard 
-                      key={uniqueKey}
-                      trainer={trainer}
-                    />
-                  );
-                })}
-                {loading && currentPage > 0 && (
-                  <ActivityIndicator style={styles.loadingMore} size="small" color="#0000ff" />
-                )}
               </View>
             )}
+
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`${searchCategory === "address" ? "주소" : "트레이너 이름"}로 검색`}
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+                onSubmitEditing={handleSearch}
+              />
+              <TouchableOpacity 
+                style={styles.searchButton}
+                onPress={handleSearch}
+              >
+                <Ionicons name="search" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </ScrollView>
+        </View>
+
+        <View style={styles.filtersArea}>
+          {selectedFilters.length > 0 && (
+            <ScrollView
+              horizontal
+              style={styles.selectedFiltersContainer}
+              showsHorizontalScrollIndicator={false}
+            >
+              {selectedFilters.map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={styles.selectedFilterButton}
+                  onPress={() =>
+                    setSelectedFilters(selectedFilters.filter((f) => f !== filter))
+                  }
+                >
+                  <Text style={styles.selectedFilterText}>{filter}</Text>
+                  <Ionicons
+                    name="close"
+                    size={12}
+                    color="#666"
+                    style={styles.selectedFilterIcon}
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <View style={styles.filterSection}>
+            <TouchableOpacity
+              style={styles.sortTriggerButton}
+              onPress={() => {
+                setOpenedFromSort(true);
+                setIsFilterVisible(true);
+              }}
+            >
+              <Text style={styles.sortTriggerText}>
+                {sortOptions.find((opt) => opt.id === selectedSort)?.label || "추천순"}
+              </Text>
+              <Text style={styles.arrowText}>↑↓</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => {
+                setOpenedFromSort(false);
+                setIsFilterVisible(true);
+              }}
+            >
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color="#666"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.filterButtonText}>필터</Text>
+              {selectedFilters.length > 0 && (
+                <Text style={styles.filterCount}>({selectedFilters.length})</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#0000ff" />
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.cardContainer}>
+            {trainers.map((trainer) => (
+              <TrainerCard key={trainer.trainer_id} trainer={trainer} />
+            ))}
+          </ScrollView>
+        )}
+
+        <FilterSideBar
+          visible={isFilterVisible}
+          onClose={() => {
+            setIsFilterVisible(false);
+            setOpenedFromSort(false);
+          }}
+          selectedSort={selectedSort}
+          onSortChange={setSelectedSort}
+          sortOptions={sortOptions}
+          openedFromSort={openedFromSort}
+          selectedFilters={selectedFilters}
+          onFilterChange={setSelectedFilters}
+        />
       </View>
-      
-      <FilterSideBar
-        visible={isFilterVisible}
-        onClose={() => {
-          setIsFilterVisible(false);
-          setOpenedFromSort(false);
-        }}
-        selectedSort={selectedSort}
-        onSortChange={setSelectedSort}
-        sortOptions={sortOptions}
-        openedFromSort={openedFromSort}
-        selectedFilters={selectedFilters}
-        onFilterChange={setSelectedFilters}
-      />
     </SafeAreaView>
   );
 };
@@ -602,7 +494,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     paddingLeft: 12,
-    
   },
   searchInput: {
     flex: 1,
@@ -883,16 +774,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  contentContainer: {
-    backgroundColor: "#fff",
-  },
   errorText: {
     color: 'red',
     fontSize: 14,
     textAlign: 'center',
-  },
-  loadingMore: {
-    paddingVertical: 20,
   },
 });
 

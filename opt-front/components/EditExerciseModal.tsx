@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
   Image,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { updateExerciseRecord, ExerciseRecord, UpdateExerciseRecordRequest } from '../api/exerciseRecords';
@@ -19,7 +18,7 @@ interface EditExerciseModalProps {
   visible: boolean;
   onClose: () => void;
   onSave: () => void;
-  record: ExerciseRecord | null;  // null 가능성 추가
+  record: ExerciseRecord;
 }
 
 interface SelectedMedia {
@@ -29,22 +28,12 @@ interface SelectedMedia {
 }
 
 const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseModalProps) => {
-  if (!record) return null;
-  
-  const [sets, setSets] = useState('');
-  const [reps, setReps] = useState('');
-  const [weight, setWeight] = useState('');
+  const [sets, setSets] = useState(record.sets.toString());
+  const [reps, setReps] = useState(record.rep.toString());
+  const [weight, setWeight] = useState(record.weight.toString());
   const [mediaIdsToDelete, setMediaIdsToDelete] = useState<number[]>([]);
   const [selectedMedias, setSelectedMedias] = useState<SelectedMedia[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (record) {
-      setSets(record.sets.toString());
-      setReps(record.rep.toString());
-      setWeight(record.weight.toString());
-    }
-  }, [record]);
 
   const handleNumberInput = (value: string, setter: (value: string) => void) => {
     const numbersOnly = value.replace(/[^0-9]/g, '');
@@ -70,31 +59,32 @@ const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseMod
         Alert.alert('권한 필요', '갤러리 접근 권한이 필요합니다.');
         return;
       }
-  
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: true,
         quality: 0.8,
         allowsMultipleSelection: true,
-        selectionLimit: 6 - (record.medias.length - mediaIdsToDelete.length) - selectedMedias.length, // 5를 6으로 변경
+        selectionLimit: 5 - (record.medias.length - mediaIdsToDelete.length) - selectedMedias.length,
       });
-  
+
       if (!result.canceled && result.assets) {
         const newMedias: SelectedMedia[] = result.assets.map(asset => ({
           uri: asset.uri,
           type: asset.type === 'video' ? 'video' : 'image',
           fileName: asset.fileName || `${Date.now()}.${asset.uri.split('.').pop()}`
         }));
-  
+
         const totalMedias = record.medias.length - mediaIdsToDelete.length + selectedMedias.length + newMedias.length;
-        if (totalMedias > 6) { // 5를 6으로 변경
-          Alert.alert('알림', '미디어는 최대 6개까지만 선택할 수 있습니다.');
+        if (totalMedias > 5) {
+          Alert.alert('알림', '미디어는 최대 5개까지만 선택할 수 있습니다.');
           return;
         }
-  
+
         setSelectedMedias([...selectedMedias, ...newMedias]);
       }
     } catch (error) {
+      console.error('Error selecting media:', error);
       Alert.alert('오류', '미디어 선택 중 문제가 발생했습니다.');
     }
   };
@@ -111,34 +101,31 @@ const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseMod
       setIsSubmitting(true);
   
       const formData = new FormData();
-      
-      // 각 필드를 개별적으로 추가
-      formData.append('exerciseRecordId', record.id.toString());
-      formData.append('set', sets);
-      formData.append('rep', reps);
-      formData.append('weight', weight);
-      
-      if (mediaIdsToDelete.length > 0) {
-        // 각 ID를 개별적으로 추가
-        mediaIdsToDelete.forEach((id) => {
-          formData.append('mediaIdsToDelete[]', id.toString());
+      formData.append('data', JSON.stringify({
+        exerciseRecordId: record.id,
+        set: parseInt(sets),
+        rep: parseInt(reps),
+        weight: parseInt(weight),
+        mediaIdsToDelete: mediaIdsToDelete.length > 0 ? mediaIdsToDelete : undefined
+      }));
+  
+      if (selectedMedias.length > 0) {
+        selectedMedias.forEach((media) => {
+          formData.append('medias', {
+            uri: media.uri,
+            type: media.type === 'image' ? 'image/jpeg' : 'video/mp4',
+            name: media.fileName || `${Date.now()}.${media.type === 'image' ? 'jpg' : 'mp4'}`
+          } as any);
         });
       }
   
-      // 새로운 미디어 파일 추가
-      selectedMedias.forEach((media, index) => {
-        formData.append('medias', {
-          uri: Platform.OS === 'android' ? media.uri : media.uri.replace('file://', ''),
-          type: media.type === 'image' ? 'image/jpeg' : 'video/mp4',
-          name: media.fileName || `image${index}.jpg`
-        } as any);
-      });
-  
-      await updateExerciseRecord(record.id, formData);
+      await updateExerciseRecord(record.id, formData);  // 두 개의 인자를 전달해야 함
       onSave();
       onClose();
       Alert.alert('성공', '운동 기록이 수정되었습니다.');
     } catch (error) {
+      console.error('Failed to update exercise record:', error);
+      Alert.alert('오류', '운동 기록 수정에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -217,11 +204,11 @@ const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseMod
               <View style={styles.mediaSectionHeader}>
                 <Text style={styles.mediaSectionTitle}>업로드된 미디어</Text>
                 <Text style={styles.mediaCount}>
-                  {record.medias.length - mediaIdsToDelete.length + selectedMedias.length}/6
+                  {record.medias.length - mediaIdsToDelete.length + selectedMedias.length}/5
                 </Text>
               </View>
 
-              <View style={styles.mediaPreviewContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mediaList}>
                 {/* 기존 미디어 표시 */}
                 {record.medias.map((media) => (
                   <View key={media.id} style={styles.mediaItem}>
@@ -264,7 +251,7 @@ const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseMod
                 ))}
 
                 {/* 미디어 추가 버튼 */}
-                {record.medias.length - mediaIdsToDelete.length + selectedMedias.length < 6 && (
+                {record.medias.length - mediaIdsToDelete.length + selectedMedias.length < 5 && (
                   <TouchableOpacity 
                     style={styles.addMediaButton}
                     onPress={handleSelectMedia}
@@ -272,7 +259,7 @@ const EditExerciseModal = ({ visible, onClose, onSave, record }: EditExerciseMod
                     <Ionicons name="add" size={40} color="#666" />
                   </TouchableOpacity>
                 )}
-              </View>
+              </ScrollView>
             </View>
           </ScrollView>
         </View>
@@ -360,14 +347,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   mediaItem: {
-    width: '30%',  // 3개씩 표시를 위한 너비 설정
-    aspectRatio: 1,
-    marginBottom: 10,
+    marginRight: 15,
     position: 'relative',
   },
   mediaImage: {
-    width: '100%',
-    height: '100%',
+    width: 100,
+    height: 100,
     borderRadius: 8,
   },
   mediaDeleteButton: {
@@ -378,11 +363,13 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 5,
   },
+  mediaList: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+  },
   addMediaButton: {
-    width: 110,  // 고정 너비
-    height: 110, // 고정 높이
-    minWidth: 100, // 최소 너비 추가
-    minHeight: 100, // 최소 높이 추가
+    width: 100,
+    height: 100,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     justifyContent: 'center',
@@ -390,7 +377,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderStyle: 'dashed',
-    flexShrink: 0, // 크기가 줄어들지 않도록 설정
   },
   videoIndicator: {
     position: 'absolute',
@@ -412,12 +398,6 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: {
     opacity: 0.6,
-  },
-  mediaPreviewContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 18,
-    paddingVertical: 10,
   },
 });
 

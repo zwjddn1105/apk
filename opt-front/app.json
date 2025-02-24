@@ -13,7 +13,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +30,8 @@
       "package": "com.kimjeongwoo.opt",
       "config": {
         "usesCleartextTraffic": true
-      }
+      },
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,8 +51,7 @@
             "usesCleartextTraffic": true
           }
         }
-      ],
-      "expo-asset"
+      ]
     ],
     "extra": {
       "eas": {

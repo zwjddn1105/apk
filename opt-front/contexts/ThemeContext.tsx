@@ -45,6 +45,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
           setIsDarkMode(savedTheme === 'true');
         }
       } catch (error) {
+        console.error('Failed to load theme preference:', error);
       }
     };
 
@@ -57,6 +58,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
       await AsyncStorage.setItem('isDarkMode', String(newThemeValue));
       setIsDarkMode(newThemeValue);
     } catch (error) {
+      console.error('Failed to save theme preference:', error);
       throw error;
     }
   };
