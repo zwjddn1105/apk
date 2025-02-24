@@ -6,8 +6,6 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
-  ImageBackground,
-  Dimensions,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,7 +27,6 @@ type Challenge = {
   startDate: string;
   endDate: string;
   status: string;
-  imagePath: string;
 };
 
 const BASE_URL = EXPO_PUBLIC_BASE_URL;
@@ -38,6 +35,7 @@ const getRefreshToken = async () => {
   try {
     return await AsyncStorage.getItem("refreshToken");
   } catch (error) {
+    console.error("Error retrieving refresh token:", error);
     return null;
   }
 };
@@ -62,7 +60,9 @@ const OngoingChallengesScreen = () => {
           }
         );
         setChallenges(response.data);
-      } catch (error) {}
+      } catch (error) {
+        console.error("참여 중인 챌린지 불러오기 실패:", error);
+      }
     };
 
     fetchChallenges();
@@ -73,23 +73,7 @@ const OngoingChallengesScreen = () => {
       <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
-  const renderChallengeCard = (challenge: Challenge) => (
-    <TouchableOpacity
-      key={challenge.id}
-      style={styles.challengeCard}
-      activeOpacity={0.8}
-    >
-      <ImageBackground
-        source={{ uri: challenge.imagePath }}
-        style={styles.challengeCard}
-        imageStyle={{ borderRadius: 15 }}
-      >
-        <View style={styles.overlay}>
-          <Text style={styles.cardTitle}>{challenge.title}</Text>
-        </View>
-      </ImageBackground>
-    </TouchableOpacity>
-  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <TopHeader />
@@ -106,15 +90,39 @@ const OngoingChallengesScreen = () => {
         <View style={styles.section}>
           {renderSectionHeader("내가 참여중인 챌린지")}
           <View style={styles.cardContainer}>
-            {challenges.map(renderChallengeCard)}
+            {challenges.map((challenge) => (
+              <View key={challenge.id} style={styles.challengeCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>{challenge.title}</Text>
+                  <Text style={styles.cardSubtitle}>{challenge.type}</Text>
+                </View>
+                <View style={styles.cardContent}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>기간</Text>
+                    <Text style={styles.infoValue}>
+                      {`${challenge.startDate} ~ ${challenge.endDate}`}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>상태</Text>
+                    <Text style={styles.infoValue}>{challenge.status}</Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>설명</Text>
+                    <Text style={styles.infoValue}>
+                      {challenge.description}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
-const { width } = Dimensions.get("window");
-const cardWidth = (width - 60) / 2;
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -123,12 +131,6 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 10,
     flex: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.4)", // 반투명한 오버레이
-    justifyContent: "center",
-    alignItems: "center",
   },
   section: {
     marginTop: 10,
@@ -151,10 +153,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   challengeCard: {
-    width: cardWidth,
+    width: "48%",
     height: 220,
     backgroundColor: "#fff",
     borderRadius: 15,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#eee",
     shadowColor: "#000",
@@ -165,18 +168,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     marginBottom: 14,
-    overflow: "hidden",
   },
   cardHeader: {
     marginBottom: 20,
   },
   cardTitle: {
     fontSize: 17,
-    color: "#FFFFFF",
     fontWeight: "bold",
-    textAlign: "center",
     marginBottom: 4,
-    padding: 10,
   },
   cardSubtitle: {
     fontSize: 14,

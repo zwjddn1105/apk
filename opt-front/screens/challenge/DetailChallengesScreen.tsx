@@ -7,7 +7,8 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
-  ImageBackground,
+  Linking,
+  Platform,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,7 +30,7 @@ import { ProgressBar } from "react-native-paper";
 type RootStackParamList = {
   DetailChallenge: { challengeId: number };
   AuthChallengeScreen: { challengeId: number };
-  ProfileScreen: { profileData: any };
+  OtherProfileScreen: { hostId: number };
 };
 
 type DetailChallengeProps = {
@@ -55,7 +56,7 @@ type Challenge = {
   maxParticipants: number;
   frequency: number;
   progress: number | null;
-  imagePath: string;
+  imagePath: string | null;
   exerciseType: string;
   exerciseCount: number | null;
   exerciseDuration: number | null;
@@ -72,7 +73,22 @@ const getRefreshToken = async () => {
   try {
     return await AsyncStorage.getItem("refreshToken");
   } catch (error) {
+    console.error("Error retrieving refresh token:", error);
     return null;
+  }
+};
+
+const openMLKit = () => {
+  if (Platform.OS === "android") {
+    try {
+      Linking.openURL("mlkit://")
+        .catch(err => Alert.alert("오류", "ML Kit 실행 실패: " + err));
+      Alert.alert("성공", "ML Kit 실행 성공!");
+    } catch (error) {
+      Alert.alert("오류", "ML Kit 실행 중 오류 발생");
+    }
+  } else {
+    Alert.alert("알림", "Android에서만 지원됩니다.");
   }
 };
 
@@ -105,6 +121,7 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
       setIsParticipating(response.data.currentParticipants > 0);
       setLoading(false);
     } catch (error) {
+      console.error("챌린지 상세 정보 불러오기 실패:", error);
       setError("챌린지 정보를 불러오는데 실패했습니다.");
       setLoading(false);
     }
@@ -148,7 +165,9 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
             setContributions(contributionsResponse.data);
           }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.error("챌린지 기록 불러오기 실패:", error);
+      }
     };
 
     fetchChallengeRecords();
@@ -183,6 +202,7 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
         fetchChallengeDetails();
       }
     } catch (error) {
+      console.error("API 호출 중 오류 발생:", error);
       Alert.alert("오류", "작업 중 문제가 발생했습니다. 다시 시도해주세요.");
     }
   };
@@ -209,17 +229,7 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
       </View>
     );
   }
-  const handleProfilePress = async () => {
-    try {
-      const response = await axios.get(
-        `${BASE_URL}/profile/${challenge.hostId}`
-      );
-      if (response.status === 200) {
-        navigation.navigate("ProfileScreen", { profileData: response.data });
-      } else {
-      }
-    } catch (error) {}
-  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <TopHeader />
@@ -237,7 +247,13 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
         <View style={styles.contentContainer}>
           {/* 호스트 정보 */}
           <View style={styles.hostInfoContainer}>
-            <TouchableOpacity onPress={handleProfilePress}>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("OtherProfileScreen", {
+                  hostId: challenge.hostId,
+                })
+              }
+            >
               <FontAwesome
                 name="user-circle-o"
                 size={40}
@@ -247,7 +263,11 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
             </TouchableOpacity>
             <View style={styles.hostInfoTextContainer}>
               <Text style={styles.hostNameText}>
-                개최자: {challenge.hostNickname}
+                개최자: {challenge.hostRealName}
+              </Text>
+
+              <Text style={styles.hostSubtitleText}>
+                {challenge.hostNickname}
               </Text>
             </View>
             {challenge.status === "OPEN" && (
@@ -264,45 +284,36 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
           {/* 챌린지 카드 */}
           <View style={styles.rowContainer}>
             <View style={styles.challengeCard}>
-              <ImageBackground
-                source={{ uri: challenge.imagePath }}
-                style={styles.cardBackground}
-                imageStyle={{ borderRadius: 12 }}
-              >
-                <View style={styles.cardOverlay}>
-                  <Text style={styles.cardTitle}>{challenge.title}</Text>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{challenge.title}</Text>
+                <Text style={styles.cardSubtitle}>{challenge.type}</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>기간</Text>
+                  <Text
+                    style={styles.infoValue}
+                  >{`${challenge.startDate} ~ ${challenge.endDate}`}</Text>
                 </View>
-              </ImageBackground>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>상태</Text>
+                  <Text style={styles.infoValue}>{challenge.status}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>보상</Text>
+                  <Text style={styles.infoValue}>{challenge.reward}</Text>
+                </View>
+              </View>
             </View>
 
             {/* 챌린지 설명 */}
             <View style={styles.challengeDescription}>
               <Text style={styles.descriptionTitle}>상세정보</Text>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>유형</Text>
-                <Text style={styles.infoValue}>{challenge.type}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>보상</Text>
-                <Text style={styles.infoValue}>{challenge.reward}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>기간</Text>
-                <Text
-                  style={styles.infoValue}
-                >{`${challenge.startDate} ~ ${challenge.endDate}`}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>빈도</Text>
-                <Text
-                  style={styles.infoValue}
-                >{`${challenge.frequency}회`}</Text>
-              </View>
+              <Text style={styles.descriptionContent}>
+                {challenge.description}
+              </Text>
             </View>
           </View>
-
-          <Text>{challenge.description}</Text>
-          <View style={{ marginBottom: 10 }}></View>
           {challenge.type === "TEAM" && contributions && (
             <View style={styles.rowContainer}>
               <Text style={styles.rankText}>챌린지 진행도</Text>
@@ -326,12 +337,7 @@ const DetailChallengeScreen: React.FC<DetailChallengeProps> = ({ route }) => {
 
             {/* 인증하기 버튼 */}
             {challenge.status === "PROGRESS" && (
-              <TouchableOpacity
-                style={styles.authButton}
-                onPress={() => {
-                  navigation.navigate("AuthChallengeScreen", { challengeId });
-                }}
-              >
+              <TouchableOpacity style={styles.authButton} onPress={openMLKit}>
                 <Text style={styles.authButtonText}>인증하기</Text>
               </TouchableOpacity>
             )}
@@ -467,7 +473,6 @@ const styles = StyleSheet.create({
   },
   challengeCard: {
     flex: 1,
-    height: 220,
     backgroundColor: "#f9f9f9",
     borderRadius: 12,
     padding: 20,
@@ -477,15 +482,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     marginRight: 10,
-    overflow: "hidden",
   },
   cardHeader: {
     marginBottom: 10,
   },
   cardTitle: {
-    fontSize: 12,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: "#000",
   },
   cardSubtitle: {
     fontSize: 14,
@@ -602,14 +606,6 @@ const styles = StyleSheet.create({
   },
   goalNumber: {
     fontSize: 14,
-  },
-  cardBackground: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  cardOverlay: {
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    padding: 10,
   },
 });
 

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
-  SafeAreaView,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -116,199 +115,189 @@ const OtherProfileScreen = ({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.fixedHeader}>
-          <View style={styles.headerContent}>
+    <View style={styles.container}>
+      <View style={styles.fixedHeader}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="chevron-back" size={24} color="black" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{trainer.name}</Text>
+          <View style={styles.headerRight}>
             <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => navigation.goBack()}
+              style={styles.headerIcon}
+              onPress={() => navigation.navigate("Badge")}
             >
-              <Ionicons name="chevron-back" size={24} color="black" />
+              <MaterialIcons name="military-tech" size={24} color="black" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{trainer.name}</Text>
-            <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.headerIcon}
-                onPress={() => navigation.navigate("Badge")}
-              >
-                <MaterialIcons name="military-tech" size={24} color="black" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerIcon}>
-                <Ionicons name="heart-outline" size={24} color="black" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.headerIcon}
-                onPress={() => navigation.navigate("SettingScreen")}
-              >
-                <Ionicons name="settings-outline" size={24} color="black" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          {/* Profile Section */}
-          <View style={styles.profileSection}>
-            <View style={styles.profileImageContainer}>
-              <Image
-                source={require("../../assets/trainer-placeholder.png")}
-                style={styles.profileImage}
-              />
-              <View style={styles.badgeOverlay} />
-            </View>
-
-            <Text style={styles.profileName}>{trainer.name}</Text>
-
-            <View style={styles.locationContainer}>
-              <Ionicons name="location-outline" size={18} color="#666" />
-              <Text style={styles.locationText}>서울시 강남구</Text>
-            </View>
-
-            <TouchableOpacity style={styles.ratingContainer}>
-              <View style={styles.ratingInner}>
-                <Text style={styles.ratingNumber}>{trainer.rating}</Text>
-                <View style={styles.starsContainer}>
-                  {generateStars(trainer.rating)}
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* 팔로워/팔로잉 */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{trainer.followers}</Text>
-                <Text style={styles.statLabel}>팔로워</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{trainer.following}</Text>
-                <Text style={styles.statLabel}>팔로잉</Text>
-              </View>
-            </View>
-
-            {/* 관심사 태그 */}
-            <View style={styles.interestsContainer}>
-              {trainer.interests.map((interest, index) => (
-                <View key={index} style={styles.interestTag}>
-                  <Text style={styles.interestText}>{interest}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* 자격/학력 섹션 */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              자격, 학력 자유로운 폼 (자기소개포함)
-            </Text>
-            <Text style={styles.certificationText}>
-              {trainer.certification}
-            </Text>
-          </View>
-
-          {/* Licenses Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>증명된자격증</Text>
-            {trainer.licenses.map((license, index) => (
-              <View key={index} style={styles.licenseItem}>
-                <MaterialIcons name="verified" size={24} color="#4169E1" />
-                <Text style={styles.licenseText}>{license}</Text>
-              </View>
-            ))}
-            {trainer.awards.map((award, index) => (
-              <View key={index} style={styles.licenseItem}>
-                <MaterialIcons name="emoji-events" size={24} color="#FFD700" />
-                <Text style={styles.licenseText}>{award}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Location Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>위치</Text>
-            <Image
-              source={{ uri: "/api/placeholder/400/200" }}
-              style={styles.mapImage}
-            />
-          </View>
-
-          {/* Reviews Section */}
-          <View style={styles.section}>
-            <View style={styles.reviewHeader}>
-              <Text style={styles.sectionTitle}>후기</Text>
-              <View style={styles.ratingContainer}>
-                <Text style={styles.ratingNumber}>{trainer.rating}</Text>
-                <View style={styles.starsContainer}>
-                  {generateStars(trainer.rating)}
-                </View>
-              </View>
-            </View>
-
-            {trainer.reviews.map((review) => (
-              <View key={review.id} style={styles.reviewItem}>
-                <View style={styles.reviewHeader}>
-                  <Image
-                    source={{ uri: "/api/placeholder/40/40" }}
-                    style={styles.reviewerImage}
-                  />
-                  <View style={styles.reviewerInfo}>
-                    <Text style={styles.reviewerName}>{review.user.name}</Text>
-                    <Text style={styles.reviewDate}>{review.user.date}</Text>
-                  </View>
-                  <View style={styles.reviewRating}>
-                    {generateStars(review.rating)}
-                  </View>
-                </View>
-                <Text style={styles.reviewContent}>{review.content}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Pricing Section */}
-          <View style={styles.pricingContainer}>
-            <TouchableOpacity style={styles.pricingButton}>
-              <View style={styles.priceItem}>
-                <Text style={styles.priceCount}>1회</Text>
-                <Text style={styles.priceAmount}>
-                  {trainer.prices.single}원
-                </Text>
-              </View>
+            <TouchableOpacity style={styles.headerIcon}>
+              <Ionicons name="heart-outline" size={24} color="black" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.pricingButton, styles.pricingButtonGreen]}
+              style={styles.headerIcon}
+              onPress={() => navigation.navigate("SettingScreen")}
             >
-              <View style={styles.priceItem}>
-                <Text style={styles.priceCount}>
-                  {trainer.prices.bulk.count}회
-                </Text>
-                <Text style={styles.priceAmount}>
-                  {trainer.prices.bulk.price}원
-                </Text>
-              </View>
+              <Ionicons name="settings-outline" size={24} color="black" />
             </TouchableOpacity>
           </View>
-
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-
-        <View style={styles.fixedBottomButtons}>
-          <TouchableOpacity style={styles.chatButton}>
-            <Text style={styles.buttonText}>채팅상담</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.scheduleButton}>
-            <Text style={styles.buttonText}>상담예약</Text>
-          </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+
+      <ScrollView style={styles.scrollView}>
+        {/* Profile Section */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageContainer}>
+            <Image
+              source={require("../../assets/trainer-placeholder.png")}
+              style={styles.profileImage}
+            />
+            <View style={styles.badgeOverlay} />
+          </View>
+
+          <Text style={styles.profileName}>{trainer.name}</Text>
+
+          <View style={styles.locationContainer}>
+            <Ionicons name="location-outline" size={18} color="#666" />
+            <Text style={styles.locationText}>서울시 강남구</Text>
+          </View>
+
+          <TouchableOpacity style={styles.ratingContainer}>
+            <View style={styles.ratingInner}>
+              <Text style={styles.ratingNumber}>{trainer.rating}</Text>
+              <View style={styles.starsContainer}>
+                {generateStars(trainer.rating)}
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* 팔로워/팔로잉 */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{trainer.followers}</Text>
+              <Text style={styles.statLabel}>팔로워</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{trainer.following}</Text>
+              <Text style={styles.statLabel}>팔로잉</Text>
+            </View>
+          </View>
+
+          {/* 관심사 태그 */}
+          <View style={styles.interestsContainer}>
+            {trainer.interests.map((interest, index) => (
+              <View key={index} style={styles.interestTag}>
+                <Text style={styles.interestText}>{interest}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 자격/학력 섹션 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            자격, 학력 자유로운 폼 (자기소개포함)
+          </Text>
+          <Text style={styles.certificationText}>{trainer.certification}</Text>
+        </View>
+
+        {/* Licenses Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>증명된자격증</Text>
+          {trainer.licenses.map((license, index) => (
+            <View key={index} style={styles.licenseItem}>
+              <MaterialIcons name="verified" size={24} color="#4169E1" />
+              <Text style={styles.licenseText}>{license}</Text>
+            </View>
+          ))}
+          {trainer.awards.map((award, index) => (
+            <View key={index} style={styles.licenseItem}>
+              <MaterialIcons name="emoji-events" size={24} color="#FFD700" />
+              <Text style={styles.licenseText}>{award}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Location Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>위치</Text>
+          <Image
+            source={{ uri: "/api/placeholder/400/200" }}
+            style={styles.mapImage}
+          />
+        </View>
+
+        {/* Reviews Section */}
+        <View style={styles.section}>
+          <View style={styles.reviewHeader}>
+            <Text style={styles.sectionTitle}>후기</Text>
+            <View style={styles.ratingContainer}>
+              <Text style={styles.ratingNumber}>{trainer.rating}</Text>
+              <View style={styles.starsContainer}>
+                {generateStars(trainer.rating)}
+              </View>
+            </View>
+          </View>
+
+          {trainer.reviews.map((review) => (
+            <View key={review.id} style={styles.reviewItem}>
+              <View style={styles.reviewHeader}>
+                <Image
+                  source={{ uri: "/api/placeholder/40/40" }}
+                  style={styles.reviewerImage}
+                />
+                <View style={styles.reviewerInfo}>
+                  <Text style={styles.reviewerName}>{review.user.name}</Text>
+                  <Text style={styles.reviewDate}>{review.user.date}</Text>
+                </View>
+                <View style={styles.reviewRating}>
+                  {generateStars(review.rating)}
+                </View>
+              </View>
+              <Text style={styles.reviewContent}>{review.content}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Pricing Section */}
+        <View style={styles.pricingContainer}>
+          <TouchableOpacity style={styles.pricingButton}>
+            <View style={styles.priceItem}>
+              <Text style={styles.priceCount}>1회</Text>
+              <Text style={styles.priceAmount}>{trainer.prices.single}원</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pricingButton, styles.pricingButtonGreen]}
+          >
+            <View style={styles.priceItem}>
+              <Text style={styles.priceCount}>
+                {trainer.prices.bulk.count}회
+              </Text>
+              <Text style={styles.priceAmount}>
+                {trainer.prices.bulk.price}원
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+
+      <View style={styles.fixedBottomButtons}>
+        <TouchableOpacity style={styles.chatButton}>
+          <Text style={styles.buttonText}>채팅상담</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.scheduleButton}>
+          <Text style={styles.buttonText}>상담예약</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
   container: {
     flex: 1,
     backgroundColor: "#fff",

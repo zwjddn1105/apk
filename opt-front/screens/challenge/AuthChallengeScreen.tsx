@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, NativeModules, TouchableOpacity } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TopHeader } from "../../components/TopHeader";
@@ -18,12 +18,16 @@ type AuthChallengeProps = {
 };
 type Challenge = {};
 
+const { PoseMatcherModule } = NativeModules;
+console.log("NativeModules:", NativeModules);
+console.log("PoseMatcherModule:", NativeModules.PoseMatcherModule);
 const BASE_URL = EXPO_PUBLIC_BASE_URL;
 
 const getRefreshToken = async () => {
   try {
     return await AsyncStorage.getItem("refreshToken");
   } catch (error) {
+    console.error("Error retrieving refresh token:", error);
     return null;
   }
 };
@@ -32,22 +36,57 @@ const AuthChallengeScreen: React.FC<AuthChallengeProps> = ({ route }) => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { challengeId } = route.params; // 프롭에서 challengeId 가져오기
+
+  useEffect(() => {
+    startPoseDetection();
+  }, []);
+
+  const startPoseDetection = async () => {
+    try {
+      
+      const result = await PoseMatcherModule.startCamera(); // ✅ 네이티브 모듈에서 카메라 실행
+      console.log("Pose Detection 결과:", result);
+    } catch (error) {
+      console.error("Pose Detection 오류:", error);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <TopHeader />
-      <Text>뭐야된거냐</Text>
-      <ScrollView></ScrollView>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <Text style={styles.title}>포즈 인증 중...</Text>
+
+      {/* 종료 버튼 */}
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={() => navigation.goBack()} // ✅ 인증 완료 후 화면 닫기
+      >
+        <Text style={styles.closeButtonText}>닫기</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
   container: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+  },
+  title: {
+    fontSize: 20,
+    color: "white",
+    marginBottom: 20,
+  },
+  closeButton: {
+    padding: 10,
+    backgroundColor: "#FF5A5F",
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  closeButtonText: {
+    color: "white",
+    fontWeight: "bold",
   },
 });
 

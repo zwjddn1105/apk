@@ -9,8 +9,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  DeviceEventEmitter,
 } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,9 +21,6 @@ import { ChatErrorView } from '../../components/ChatErrorView';
 import { ChatLoadingIndicator } from '../../components/ChatLoadingIndicator';
 import { ApiMessage, Message } from '../../types/chat';
 import { chatApi } from '../../api/chatApi';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
 type ChatScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Chat'>;
 type ChatScreenRouteProp = RouteProp<RootStackParamList, 'Chat'>;
@@ -64,6 +59,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
         scrollToBottom();
       });
     } catch (error) {
+      console.error('WebSocket connection failed:', error);
       setError('채팅 서버 연결에 실패했습니다.');
       setIsConnected(false);
     }
@@ -142,120 +138,53 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => 
     }
   }, [newMessage, roomId, isConnected]);
 
-  // renderMessage 함수와 관련 스타일을 다음과 같이 수정
+  const renderMessage = ({ item }: { item: Message }) => {
+    // currentUserId와 senderId를 모두 문자열로 변환하여 비교
+    const isOwnMessage = item.senderId === currentUserId?.toString();
+    const isSystemMessage = item.messageType === 'SYSTEM';
 
-// renderMessage 함수에 디버그 로그 추가 및 조건 수정
-const renderMessage = ({ item }: { item: Message }) => {
-  const isOwnMessage = item.senderId === currentUserId?.toString();
-  const isSessionConfirmMessage = 
-    item.content.includes('세션') && 
-    item.content.includes('완료를 요청했습니다') &&
-    item.content.match(/\|\d+\|/);
+    console.log('Message comparison:', {
+        messageSenderId: item.senderId,
+        currentUserId: currentUserId,
+        isOwnMessage: isOwnMessage
+    });
 
-  const sessionNumberMatch = item.content.match(/(\d+)회차/);
-  const sessionNumber = sessionNumberMatch ? sessionNumberMatch[1] : null;
-
-  const handleConfirmSession = async () => {
-    if (!sessionNumber) return;
-  
-    Alert.alert(
-      '세션 완료 확인',
-      '세션 완료를 확인하시겠습니까?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '확인',
-          onPress: async () => {
-            try {
-              const refreshToken = await AsyncStorage.getItem('refreshToken');
-              if (!refreshToken) {
-                throw new Error('로그인이 필요합니다.');
-              }
-  
-              // 메시지에서 세션 ID 추출
-              const sessionIdMatch = item.content.match(/\|(\d+)\|/);
-              const sessionId = sessionIdMatch ? parseInt(sessionIdMatch[1]) : null;
-  
-              if (!sessionId) {
-                throw new Error('세션 정보를 찾을 수 없습니다.');
-              }
-  
-              // membercheck API 호출
-              const response = await fetch(`${BASE_URL}/sessions/membercheck`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${refreshToken}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  sessionId: sessionId
-                }),
-              });
-  
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || '세션 확인 처리 중 오류가 발생했습니다.');
-              }
-  
-              // 성공 메시지 전송
-              const message = `${sessionNumber}회차 세션이 완료되었습니다.`;
-              await ChatService.sendMessage(roomId, message);
-              
-              Alert.alert('성공', '세션이 완료되었습니다.');
-  
-              // 티켓 목록 새로고침 이벤트 발생
-              DeviceEventEmitter.emit('refreshTickets');
-              
-            } catch (error) {
-            }
-          },
-        },
-      ]
+    return (
+        <View style={[
+            styles.messageContainer,
+            isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer,
+            isSystemMessage ? styles.systemMessageContainer : null,
+        ]}>
+            {!isOwnMessage && !isSystemMessage && (
+                <Image
+                    source={{ uri: otherUserType === 'TRAINER' ? 'trainer-profile-image' : 'user-profile-image' }}
+                    style={styles.profileImage}
+                />
+            )}
+            <View style={[
+                styles.messageContent,
+                isOwnMessage ? styles.ownMessageContent : styles.otherMessageContent,
+                isSystemMessage ? styles.systemMessageContent : null,
+            ]}>
+                <Text style={[
+                    styles.messageText,
+                    isOwnMessage ? styles.ownMessageText : null,
+                    isSystemMessage ? styles.systemMessageText : null,
+                ]}>
+                    {item.content}
+                </Text>
+                <Text style={[
+                    styles.timestamp,
+                    isOwnMessage ? styles.ownTimestamp : null
+                ]}>
+                    {new Date(item.timestamp).toLocaleTimeString('ko-KR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                    })}
+                </Text>
+            </View>
+        </View>
     );
-  };
-
-  return (
-      <View style={[
-          styles.messageContainer,
-          isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer,
-      ]}>
-          {!isOwnMessage && (
-              <Image
-                  source={{ uri: otherUserType === 'TRAINER' ? 'trainer-profile-image' : 'user-profile-image' }}
-                  style={styles.profileImage}
-              />
-          )}
-          <View style={[
-              styles.messageContent,
-              isOwnMessage ? styles.ownMessageContent : styles.otherMessageContent,
-          ]}>
-              <Text style={[
-                  styles.messageText,
-                  isOwnMessage ? styles.ownMessageText : null,
-              ]}>
-                  {item.content}
-              </Text>
-              {/* 세션 확인 버튼 표시 조건 수정 */}
-              {isSessionConfirmMessage && !isOwnMessage && otherUserType === 'USER' && (
-                  <TouchableOpacity 
-                      style={styles.confirmButton}
-                      onPress={handleConfirmSession}
-                  >
-                      <Text style={styles.confirmButtonText}>확인하기</Text>
-                  </TouchableOpacity>
-              )}
-              <Text style={[
-                  styles.timestamp,
-                  isOwnMessage ? styles.ownTimestamp : null
-              ]}>
-                  {new Date(item.timestamp).toLocaleTimeString('ko-KR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                  })}
-              </Text>
-          </View>
-      </View>
-  );
 };
 
   return (
@@ -436,19 +365,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-    padding: 8,
-    borderRadius: 16,
-    marginTop: 8,
-    alignSelf: 'center',
-},
-confirmButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-},
 });
 
 export default ChatScreen;

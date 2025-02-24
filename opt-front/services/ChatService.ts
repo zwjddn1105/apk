@@ -41,6 +41,7 @@ class ChatService {
     }
 
     if (finalStatus !== 'granted') {
+      console.log('알림 권한이 거부되었습니다.');
       return;
     }
 
@@ -60,6 +61,7 @@ class ChatService {
 
   async connect(): Promise<boolean> {
     if (this.client?.connected) {
+      console.log('Already connected');
       return true;
     }
 
@@ -78,30 +80,37 @@ class ChatService {
       forceBinaryWSFrames: true,
       appendMissingNULLonIncoming: true,
       debug: (str) => {
+        console.log('STOMP Debug:', str);
       },
       onWebSocketError: (error) => {
+        console.error('WebSocket Error:', error);
       }
     });
   
     return new Promise((resolve, reject) => {
       const connectionTimeout = setTimeout(() => {
+        console.log('Connection timeout');
         reject(new Error('Connection timeout'));
       }, 5000);
   
       this.client!.onConnect = (frame) => {
         clearTimeout(connectionTimeout);
+        console.log('Connected, frame:', frame);
         resolve(true);
       };
   
       this.client!.onStompError = (frame) => {
         clearTimeout(connectionTimeout);
+        console.error('STOMP Error:', frame);
         reject(new Error(`STOMP error: ${frame.headers.message}`));
       };
   
       try {
+        console.log('Activating client with headers:', this.client!.connectHeaders);
         this.client!.activate();
       } catch (error) {
         clearTimeout(connectionTimeout);
+        console.error('Activation error:', error);
         reject(error);
       }
     });
@@ -110,6 +119,7 @@ class ChatService {
   private async handleConnectionError() {
     if (this.reconnectAttempts < 5) {
       this.reconnectAttempts++;
+      console.log(`재연결 시도 ${this.reconnectAttempts}/5...`);
       
       if (this.reconnectTimeout) {
         clearTimeout(this.reconnectTimeout);
@@ -119,6 +129,7 @@ class ChatService {
         await this.connect();
       }, this.RECONNECT_INTERVAL);
     } else {
+      console.error('최대 재연결 시도 횟수 초과');
     }
   }
 
@@ -139,6 +150,7 @@ class ChatService {
 
   async subscribeToRoom(roomId: string, callback: (message: Message) => void) {
     if (!this.client?.connected) {
+      console.warn('Cannot subscribe: WebSocket not connected');
       return;
     }
   
@@ -146,12 +158,15 @@ class ChatService {
     if (existingSubscription) {
       try {
         existingSubscription.send("");
+        console.log(`Existing subscription for room ${roomId} is active`);
         return;
       } catch (e) {
+        console.log(`Removing inactive subscription for room ${roomId}`);
         this.subscriptions.delete(roomId);
       }
     }
   
+    console.log(`Creating new subscription for room: ${roomId}`);
     return new Promise<void>(async (resolve) => {
       const refreshToken = await AsyncStorage.getItem('refreshToken');
       const client = this.client!;
@@ -159,10 +174,13 @@ class ChatService {
         `/topic/chat-room/${roomId}`,
         message => {
           try {
+            console.log('Received WebSocket message:', message.body);
             const apiMessage = JSON.parse(message.body) as ApiMessage;
             const convertedMessage = this.convertApiMessage(apiMessage);
+            console.log('Converted message:', convertedMessage);
             callback(convertedMessage);
           } catch (error) {
+            console.error('Error parsing message:', error);
           }
         },
         {
@@ -172,6 +190,7 @@ class ChatService {
       );
     
       this.subscriptions.set(roomId, subscription);
+      console.log(`Successfully subscribed to room: ${roomId}`);
       resolve();
     });
   }
@@ -207,6 +226,7 @@ class ChatService {
   unsubscribeFromRoom(roomId: string): void {
     const subscription = this.subscriptions.get(roomId);
     if (subscription) {
+      console.log(`Unsubscribing from room: ${roomId}`);
       subscription.unsubscribe();
       this.subscriptions.delete(roomId);
     }
@@ -214,6 +234,7 @@ class ChatService {
 
   async sendMessage(roomId: string, content: string): Promise<boolean> {
     if (!this.client?.connected) {
+      console.warn('Cannot send message: WebSocket not connected');
       return false;
     }
 
@@ -230,6 +251,7 @@ class ChatService {
       });
       return true;
     } catch (error) {
+      console.error('Error sending message:', error);
       return false;
     }
   }
@@ -278,6 +300,7 @@ class ChatService {
         body: JSON.stringify({ timestamp })
       });
     } catch (error) {
+      console.error('읽음 처리 에러:', error);
     }
   }
 
@@ -293,6 +316,7 @@ class ChatService {
       const data = await response.json();
       return data.unreadCount || 0;
     } catch (error) {
+      console.error('읽지 않은 메시지 수 조회 에러:', error);
       return 0;
     }
   }

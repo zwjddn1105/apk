@@ -10,30 +10,17 @@ import {
   FlatList,
   ViewToken,
   ImageBackground,
-  Alert,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TopHeader } from "../components/TopHeader";
-import {
-  searchTrainers,
-  getRecommendedTrainers,
-  TrainerResponse,
-} from "../api/searchTrainer";
-import {
-  LocationObject,
-  requestForegroundPermissionsAsync,
-  getForegroundPermissionsAsync,
-  getLastKnownPositionAsync,
-} from "expo-location";
-import { EXPO_PUBLIC_BASE_URL } from "@env";
-import axios from "axios";
+import ResetStorageButton from "components/reset";
 
-const { width: WINDOW_WIDTH } = Dimensions.get("window");
+const { width: WINDOW_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = WINDOW_WIDTH;
-const AUTO_SCROLL_INTERVAL = 5000; // 5초마다 자동 슬라이드
+const AUTO_SCROLL_INTERVAL = 3000; // 3초마다 자동 슬라이드
 
 type RootStackParamList = {
   Home: undefined;
@@ -41,8 +28,6 @@ type RootStackParamList = {
   DMScreen: undefined;
   Profile: undefined;
   LoginNeedScreen: undefined;
-  ProfileScreen: { profileData: any };
-  OnboardingScreen: undefined;
 };
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
@@ -50,61 +35,41 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<
   "Home"
 >;
 
-interface TrainerCardProps {
-  trainer: TrainerResponse;
-  compact?: boolean;
-}
+const CHALLENGE_DATA = [
+  {
+    id: 1,
+    title: 'X-CHALLENGE SEOUL',
+    description: '서울시 청년 도전 지원사업',
+    period: '2024.01.01 ~ 2024.12.31',
+  },
+  {
+    id: 2,
+    title: 'SUMMER BODY CHALLENGE',
+    description: '여름맞이 바디 챌린지',
+    period: '2024.05.01 ~ 2024.06.30',
+  },
+  {
+    id: 3,
+    title: 'POWER LIFTING',
+    description: '파워리프팅 기록 도전',
+    period: '2024.03.01 ~ 2024.08.31',
+  },
+];
 
-const TrainerCard: React.FC<TrainerCardProps> = ({
-  trainer,
-  compact = true,
-}) => {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
-  // console.log(trainer, "aaaaaaaaaaaaaaaaaaaaaaaaa");
-  const lowestPriceMenu =
-    trainer.menus.length > 0
-      ? trainer.menus.reduce((prev, curr) =>
-          prev.price < curr.price ? prev : curr
-        )
-      : null;
-
-  const roundedRating = Math.round(trainer.averageRating * 10) / 10;
-
-  const handlePress = () => {
-    navigation.navigate("ProfileScreen", { profileData: trainer.trainerId });
-  };
-
-  return (
-    // <TouchableOpacity
-    //   style={[styles.trainerCard, compact && styles.trainerCardCompact]}
-    //   onPress={handlePress}
-    //   activeOpacity={0.7}
-    // >
-    <View style={[styles.trainerCard, compact && styles.trainerCardCompact]}>
-      <Image
-        source={{ uri: trainer.trainerProfileImage }}
-        style={[styles.trainerImage, compact && styles.trainerImageCompact]}
-        defaultSource={require("../assets/trainer-placeholder.png")}
-      />
-
-      <View style={styles.trainerContent}>
-        <Text style={styles.trainerName} numberOfLines={1}>
-          {trainer.trainerNickname}
-        </Text>
-        <Text style={styles.trainerDescription} numberOfLines={1}>
-          {trainer.keywords.join(", ")}
-        </Text>
-        {lowestPriceMenu && (
-          <Text style={styles.trainerPrice}>
-            {lowestPriceMenu.totalSessions}회{" "}
-            {lowestPriceMenu.price.toLocaleString()}원
-          </Text>
-        )}
-      </View>
+const TrainerCard = () => (
+  <View style={styles.trainerCard}>
+    <Image
+      source={require("../assets/trainer-placeholder.png")}
+      style={styles.trainerImage}
+      defaultSource={require("../assets/trainer-placeholder.png")}
+    />
+    <View style={styles.trainerContent}>
+      <Text style={styles.trainerName}>임성진 트레이너</Text>
+      <Text style={styles.trainerDescription}>0.4km · 경력 4년</Text>
+      <Text style={styles.trainerPrice}>1회당 60,000원</Text>
     </View>
-    // </TouchableOpacity>
-  );
-};
+  </View>
+);
 
 interface SpecialtyButtonProps {
   title: string;
@@ -167,13 +132,11 @@ interface Schedule {
 
 const TodaySchedule: React.FC<{ schedule: Schedule }> = ({ schedule }) => {
   const formatTime = (date: Date) => {
-    return new Date(date)
-      .toLocaleTimeString("ko-KR", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-      .replace(/\s+/g, " ");
+    return new Date(date).toLocaleTimeString('ko-KR', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).replace(/\s+/g, ' ');
   };
 
   return (
@@ -195,161 +158,18 @@ interface ChallengeItem {
   id: number;
   title: string;
   description: string;
-  startDate: string;
-  endDate: string;
-  imagePath: string;
+  period: string;
 }
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-
+  const [selectedSpecialty, setSelectedSpecialty] = useState("다이어트");
   const [selectedTab, setSelectedTab] = useState("nearby");
-  const [nearbyTrainers, setNearbyTrainers] = useState<TrainerResponse[]>([]);
-  const [popularTrainers, setPopularTrainers] = useState<TrainerResponse[]>([]);
-  const [location, setLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
   const [streak, setStreak] = useState(0);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState<string[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<Schedule[]>([]);
   const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [CHALLENGE_DATA, setChallenges] = useState<ChallengeItem[]>([]);
-  const fetchChallenges = async () => {
-    try {
-      const response = await axios.get(
-        `${EXPO_PUBLIC_BASE_URL}/challenges?status=progress&page=0&size=5`
-      );
-      setChallenges(response.data.content);
-    } catch (error) {
-      console.error("Error fetching challenges:", error);
-    }
-  };
-
-  const [monthlyRecords, setMonthlyRecords] = useState<{
-    exerciseDates: string[];
-    mealDates: string[];
-  }>({
-    exerciseDates: [],
-    mealDates: [],
-  });
-  useEffect(() => {
-    fetchChallenges();
-  }, []);
-  useFocusEffect(
-    useCallback(() => {
-      const loadMonthlyRecords = async () => {
-        try {
-          const refreshToken = await AsyncStorage.getItem("refreshToken");
-          if (!refreshToken) throw new Error("No refresh token found");
-
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = today.getMonth() + 1;
-
-          const url = `${EXPO_PUBLIC_BASE_URL}/exercise-records/monthly?year=${year}&month=${month}`;
-
-          const response = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${refreshToken}`,
-              "Content-Type": "application/json",
-            },
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to fetch monthly records");
-          }
-
-          const data = await response.json();
-          setMonthlyRecords(data);
-        } catch (error) {}
-      };
-
-      loadMonthlyRecords();
-      calculateWorkoutStats();
-    }, [])
-  );
-
-  const fetchLocation = async () => {
-    try {
-      const { status } = await getForegroundPermissionsAsync();
-      if (status !== "granted") {
-        const { status: newStatus } = await requestForegroundPermissionsAsync();
-        if (newStatus !== "granted") {
-          Alert.alert("위치 권한이 필요합니다");
-          return;
-        }
-      }
-
-      const locationResult = await getLastKnownPositionAsync({});
-      if (!locationResult) {
-        return;
-      }
-
-      setLocation({
-        latitude: locationResult.coords.latitude,
-        longitude: locationResult.coords.longitude,
-      });
-    } catch (error) {}
-  };
-
-  const fetchTrainers = async () => {
-    try {
-      // Fetch nearby trainers
-      if (location) {
-        const nearbyResponse = await searchTrainers({
-          myLatitude: location.latitude,
-          myLongitude: location.longitude,
-          sortBy: "distance",
-          size: 7,
-        });
-        setNearbyTrainers(nearbyResponse.content);
-      }
-
-      // Fetch popular trainers
-      const popularResponse = await getRecommendedTrainers({
-        size: 7,
-      });
-      setPopularTrainers(popularResponse.content);
-
-      // 월별 운동 기록 가져오기 (달력 컴포넌트와 비슷한 방식)
-      try {
-        const refreshToken = await AsyncStorage.getItem("refreshToken");
-        if (!refreshToken) throw new Error("No refresh token found");
-
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth() + 1;
-
-        const url = `${EXPO_PUBLIC_BASE_URL}/exercise-records/monthly?year=${year}&month=${month}`;
-
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${refreshToken}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch monthly records");
-        }
-
-        const data = await response.json();
-        setMonthlyRecords(data);
-      } catch (error) {}
-    } catch (error) {}
-  };
-
-  useEffect(() => {
-    fetchLocation();
-  }, []);
-
-  useEffect(() => {
-    if (location) {
-      fetchTrainers();
-    }
-  }, [location]);
 
   const flatListRef = useRef<FlatList<ChallengeItem>>(null);
   const viewabilityConfig = useRef({
@@ -357,92 +177,66 @@ const HomeScreen: React.FC = () => {
     minimumViewTime: 0,
   }).current;
 
-  const onViewableItemsChanged = useRef(
-    ({
-      viewableItems,
-    }: {
-      viewableItems: Array<ViewToken>;
-      changed: Array<ViewToken>;
-    }) => {
-      if (viewableItems[0]) {
-        setCurrentChallengeIndex(viewableItems[0].index ?? 0);
-      }
+  const onViewableItemsChanged = useRef(({ viewableItems }: {
+    viewableItems: Array<ViewToken>;
+    changed: Array<ViewToken>;
+  }) => {
+    if (viewableItems[0]) {
+      setCurrentChallengeIndex(viewableItems[0].index ?? 0);
     }
-  ).current;
+  }).current;
 
   const specialties = ["다이어트", "빌크업", "필라테스", "체형교정"];
 
   // 자동 스크롤 설정
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-
-    if (!isScrolling && CHALLENGE_DATA.length > 0) {
-      // 조건 추가
+    
+    if (!isScrolling) {
       intervalId = setInterval(() => {
-        const nextIndex = (currentChallengeIndex + 1) % CHALLENGE_DATA.length; // 수정
+        const nextIndex = (currentChallengeIndex + 1) % CHALLENGE_DATA.length;
         flatListRef.current?.scrollToIndex({
           index: nextIndex,
           animated: true,
         });
       }, AUTO_SCROLL_INTERVAL);
     }
-
+  
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [currentChallengeIndex, isScrolling, CHALLENGE_DATA]); // 의존성 배열에 challenges 추가
+  }, [currentChallengeIndex, isScrolling]);
 
   const calculateWorkoutStats = async () => {
     try {
-      const today = new Date();
-      const exerciseDates = monthlyRecords.exerciseDates || [];
+      const records = await AsyncStorage.getItem("exerciseRecords");
+      if (!records) return;
+
+      const exerciseRecords = JSON.parse(records);
+      const workoutDates = [
+        ...new Set(exerciseRecords.map((record: any) => record.date)),
+      ].sort();
 
       // 연속 운동일수 계산
       let currentStreak = 0;
+      const today = new Date().toISOString().split("T")[0];
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
 
-      // 날짜를 내림차순으로 정렬하고 Date 객체로 변환
-      const sortedDates = exerciseDates
-        .map((dateStr) => new Date(dateStr))
-        .sort((a, b) => b.getTime() - a.getTime());
+      const startCheckingDate = workoutDates.includes(today)
+        ? today
+        : yesterday;
 
-      // 마지막 운동 날짜부터 시작
-      if (sortedDates.length > 0) {
-        let currentDate = sortedDates[0];
-
-        // 오늘 또는 어제도 운동했는지 확인
-        const todayStr = today.toISOString().split("T")[0];
-        const yesterdayStr = new Date(today.getTime() - 86400000)
-          .toISOString()
-          .split("T")[0];
-
-        if (
-          exerciseDates.includes(todayStr) ||
-          exerciseDates.includes(yesterdayStr)
-        ) {
-          currentStreak = 1;
-        }
-
-        // 마지막 운동 날짜부터 연속 운동일 계산
-        for (let i = 1; i < sortedDates.length; i++) {
-          const prevDate = sortedDates[i - 1];
-          const currentCheckedDate = sortedDates[i];
-
-          // 날짜 차이 계산 (86400000 = 하루의 밀리초)
-          const dateDiff =
-            (prevDate.getTime() - currentCheckedDate.getTime()) / 86400000;
-
-          // 연속된 날짜인 경우 streak 증가
-          if (dateDiff === 1) {
-            currentStreak++;
-          } else {
-            break;
-          }
-        }
+      for (let i = new Date(startCheckingDate); ; i.setDate(i.getDate() - 1)) {
+        const dateString = i.toISOString().split("T")[0];
+        if (!workoutDates.includes(dateString)) break;
+        currentStreak++;
       }
 
-      // 주간 운동 현황 계산
+      // 주간 운동 현황
       const weeklyDates = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date(Date.now() - i * 86400000)
@@ -453,20 +247,16 @@ const HomeScreen: React.FC = () => {
 
       setStreak(currentStreak);
       setWeeklyWorkouts(
-        weeklyDates.filter((date) => exerciseDates.includes(date))
+        weeklyDates.filter((date) => workoutDates.includes(date))
       );
-    } catch (error) {}
-  };
-
-  useEffect(() => {
-    if (monthlyRecords?.exerciseDates) {
-      calculateWorkoutStats();
+    } catch (error) {
+      console.error("Failed to calculate workout stats:", error);
     }
-  }, [monthlyRecords]);
+  };
 
   const loadTodaySchedules = async () => {
     try {
-      const schedulesStr = await AsyncStorage.getItem("schedules");
+      const schedulesStr = await AsyncStorage.getItem('schedules');
       if (schedulesStr) {
         const allSchedules: Schedule[] = JSON.parse(schedulesStr);
         const today = new Date();
@@ -486,7 +276,9 @@ const HomeScreen: React.FC = () => {
 
         setTodaySchedules(todaySchedules);
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error('Failed to load today schedules:', error);
+    }
   };
 
   useFocusEffect(
@@ -498,11 +290,12 @@ const HomeScreen: React.FC = () => {
 
   const renderChallengeSection = () => (
     <View style={styles.section}>
+      <ResetStorageButton />
       <Text style={styles.sectionTitle}>진행중인 챌린지</Text>
       <View style={styles.carouselContainer}>
         <FlatList
           ref={flatListRef}
-          data={CHALLENGE_DATA} // 여기를 수정
+          data={CHALLENGE_DATA}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
@@ -518,66 +311,66 @@ const HomeScreen: React.FC = () => {
           renderItem={({ item }) => (
             <View style={styles.challengeCard}>
               <ImageBackground
-                source={
-                  item.imagePath
-                    ? { uri: item.imagePath } // 네트워크 이미지
-                    : require("../assets/challenge-placeholder.png") // 기본 이미지
-                }
+                source={require("../assets/challenge-placeholder.png")}
                 style={styles.challengeCardImage}
-                // defaultSource={require("../assets/challenge-placeholder.png")}
+                defaultSource={require("../assets/challenge-placeholder.png")}
               >
                 <View style={styles.challengeOverlay}>
                   <View style={styles.challengeCardContent}>
                     <Text style={styles.challengeCardTitle}>{item.title}</Text>
-                    <Text style={styles.challengeCardDescription}>
-                      {item.description}
-                    </Text>
-                    <Text style={styles.challengeCardPeriod}>
-                      {item.startDate} ~ {item.endDate}
-                    </Text>
+                    <Text style={styles.challengeCardDescription}>{item.description}</Text>
+                    <Text style={styles.challengeCardPeriod}>{item.period}</Text>
                   </View>
                 </View>
               </ImageBackground>
             </View>
           )}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={item => item.id.toString()}
         />
         <View style={styles.dotContainer}>
-          {CHALLENGE_DATA.map(
-            (
-              _,
-              index // 여기도 수정
-            ) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  index === currentChallengeIndex && styles.activeDot,
-                ]}
-              />
-            )
-          )}
+          {CHALLENGE_DATA.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.dot,
+                index === currentChallengeIndex && styles.activeDot,
+              ]}
+            />
+          ))}
         </View>
       </View>
     </View>
   );
 
   const renderTrainerSection = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
-      {(selectedTab === "nearby" ? nearbyTrainers : popularTrainers).map(
-        (trainer) => (
-          <TrainerCard
-            key={trainer.trainerId}
-            trainer={trainer}
-            compact={true}
+    <>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.specialtyButtonsContainer}
+      >
+        {specialties.map((specialty) => (
+          <SpecialtyButton
+            key={specialty}
+            title={specialty}
+            isSelected={selectedSpecialty === specialty}
+            onPress={() => setSelectedSpecialty(specialty)}
           />
-        )
-      )}
-    </ScrollView>
+        ))}
+      </ScrollView>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <TrainerCard />
+        <TrainerCard />
+        <TrainerCard />
+        <TrainerCard />
+        <TrainerCard />
+      </ScrollView>
+    </>
   );
 
   return (
@@ -585,6 +378,18 @@ const HomeScreen: React.FC = () => {
       <View style={styles.container}>
         <TopHeader />
         <ScrollView style={styles.mainContent}>
+          {todaySchedules.length > 0 && (
+            <View style={styles.todaySchedulesSection}>
+              <Text style={styles.todaySchedulesTitle}>
+                <Text style={styles.userName}>임시님</Text>, 오늘 일정이{' '}
+                <Text style={styles.scheduleCount}>{todaySchedules.length}건</Text> 있어요.
+              </Text>
+              {todaySchedules.map((schedule) => (
+                <TodaySchedule key={schedule.id} schedule={schedule} />
+              ))}
+            </View>
+          )}
+
           <View style={styles.workoutStatsSection}>
             <View style={styles.streakContainer}>
               <Text style={styles.streakNumber}>{streak}</Text>
@@ -631,9 +436,9 @@ const HomeScreen: React.FC = () => {
                   onPress={() => setSelectedTab("nearby")}
                 />
                 <TabButton
-                  title="많이 찾는 트레이너"
-                  isSelected={selectedTab === "popular"}
-                  onPress={() => setSelectedTab("popular")}
+                  title="1Day Class 트레이너"
+                  isSelected={selectedTab === "oneday"}
+                  onPress={() => setSelectedTab("oneday")}
                 />
               </View>
             </View>
@@ -696,27 +501,27 @@ const styles = StyleSheet.create({
   },
   challengeScrollContent: {
     paddingHorizontal: 0,
-  },
+   },
   challengeCard: {
     width: CARD_WIDTH,
     height: 250, // 카드 높이 조정
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   challengeCardImage: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "flex-end", // 텍스트를 이미지 하단에 배치
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end', // 텍스트를 이미지 하단에 배치
   },
   challengeOverlay: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.4)", // 반투명한 오버레이
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.4)', // 반투명한 오버레이
   },
   challengeCardContent: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
@@ -724,34 +529,34 @@ const styles = StyleSheet.create({
   },
   challengeCardTitle: {
     fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
+    fontWeight: 'bold',
+    color: '#fff',
     marginBottom: 8,
   },
   challengeCardDescription: {
     fontSize: 16,
-    color: "#fff",
+    color: '#fff',
     marginBottom: 8,
   },
   challengeCardPeriod: {
     fontSize: 14,
-    color: "#fff",
+    color: '#fff',
   },
   dotContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 15,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#ddd",
+    backgroundColor: '#ddd',
     marginHorizontal: 4,
   },
   activeDot: {
-    backgroundColor: "#000",
+    backgroundColor: '#000',
     width: 24,
   },
   trainerCard: {
@@ -770,23 +575,18 @@ const styles = StyleSheet.create({
     shadowRadius: 2.84,
     elevation: 3,
   },
-  trainerCardCompact: {
-    width: 200,
-  },
   trainerImage: {
     width: "100%",
     height: 200,
     borderTopLeftRadius: 15,
     borderTopRightRadius: 15,
-  },
-  trainerImageCompact: {
-    height: 150,
+    backgroundColor: "#f0f0f0",
   },
   trainerContent: {
     padding: 15,
   },
   trainerName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
     marginBottom: 5,
   },
@@ -796,7 +596,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   trainerPrice: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#000",
   },
@@ -873,14 +673,14 @@ const styles = StyleSheet.create({
     borderColor: "#000",
   },
   userName: {
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   scheduleCount: {
-    color: "#0047FF",
-    fontWeight: "bold",
+    color: '#0047FF',
+    fontWeight: 'bold',
   },
   todaySchedulesSection: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     padding: 20,
     marginHorizontal: 20,
     marginBottom: 20,
@@ -888,40 +688,40 @@ const styles = StyleSheet.create({
   todaySchedulesTitle: {
     fontSize: 18,
     marginBottom: 15,
-    color: "#333",
+    color: '#333',
   },
   todayScheduleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 10,
   },
   scheduleIconContainer: {
     width: 40,
     height: 40,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: '#f0f0f0',
     borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   scheduleIcon: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#0047FF",
+    backgroundColor: '#0047FF',
   },
   scheduleTextContainer: {
     flex: 1,
   },
   scheduleTitle: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
+    fontWeight: '500',
+    color: '#333',
     marginBottom: 4,
   },
   scheduleTime: {
     fontSize: 14,
-    color: "#666",
+    color: '#666',
   },
 });
 

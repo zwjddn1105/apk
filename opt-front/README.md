@@ -14,9 +14,7 @@ npx expo install react-native-date-picker
 npx expo install @react-native-community/datetimepicker react-native-modal-datetime-picker
 npx expo install @react-native-community/datetimepicker
 npm install axios
-npm install react-native-dotenv --save-dev
-npx expo install expo-location
-npm install react-native-ratings
+npm install react-native-dotenv --save-
 
 <!-- npm install react-native-chart-kit react-native-svg -->
 

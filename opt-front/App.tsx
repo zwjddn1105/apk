@@ -1,14 +1,22 @@
-// App.tsx
-import { StyleSheet } from "react-native";
+import React from "react";
+import { StyleSheet, View, Text, Button, Linking, Platform, Alert } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { StackNavigator } from "./navigation/StackNavigator";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ChatProvider } from "./contexts/ChatContext";
 
+const openMLKit = () => {
+  if (Platform.OS === "android") {
+    Linking.openURL("intent://com.example.cameraxapptest.MLKIT#Intent;scheme=app;package=com.example.cameraxapptest;end;")
+      .catch(err => console.log(err));
+  } else {
+    Alert.alert("알림", "Android에서만 지원됩니다.");
+  }
+};
+
 export default function App() {
   return (
-    // Provider들을 바깥쪽부터 안쪽으로 중첩해서 배치
     <AuthProvider>
       <ThemeProvider>
         <ChatProvider>
@@ -32,5 +40,24 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "blue",
+  },
+  mlKitContainer: {
+    position: "absolute",
+    bottom: 50, // 화면 하단에 배치
+    alignSelf: "center",
+    backgroundColor: "white",
+    padding: 10,
+    borderRadius: 10,
+    elevation: 5, // Android 그림자 효과
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  mlKitText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 5,
   },
 });

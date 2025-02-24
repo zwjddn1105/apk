@@ -10,7 +10,7 @@ interface ButtonProps {
 const PlusButton = ({ onPress }: ButtonProps) => {
   return (
     <TouchableOpacity style={styles.button} onPress={onPress}>
-      <Ionicons name="add-circle" size={45} color="#0C508B" />
+      <Ionicons name="add-circle" size={45} color="#007AFF" />
     </TouchableOpacity>
   );
 };
